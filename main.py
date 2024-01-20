@@ -378,7 +378,10 @@ gt_counter_per_class = {}
 counter_images_per_class = {}
 
 gt_files = []
-for txt_file in tqdm(ground_truth_files_list, desc="Reading ground-truth files"):
+
+def process_file(txt_file):
+    tmp_gt_counter_per_class = {}
+    tmp_counter_images_per_class = {}
     #print(txt_file)
     file_id = txt_file.split(".txt", 1)[0]
     file_id = os.path.basename(os.path.normpath(file_id))
@@ -417,26 +420,43 @@ for txt_file in tqdm(ground_truth_files_list, desc="Reading ground-truth files")
         else:
             bounding_boxes.append({"class_name":class_name, "bbox":bbox, "used":False})
             # count that object
-            if class_name in gt_counter_per_class:
-                gt_counter_per_class[class_name] += 1
+            if class_name in tmp_gt_counter_per_class:
+                tmp_gt_counter_per_class[class_name] += 1
             else:
                 # if class didn't exist yet
-                gt_counter_per_class[class_name] = 1
+                tmp_gt_counter_per_class[class_name] = 1
 
             if class_name not in already_seen_classes:
-                if class_name in counter_images_per_class:
-                    counter_images_per_class[class_name] += 1
+                if class_name in tmp_counter_images_per_class:
+                    tmp_counter_images_per_class[class_name] += 1
                 else:
                     # if class didn't exist yet
-                    counter_images_per_class[class_name] = 1
+                    tmp_counter_images_per_class[class_name] = 1
                 already_seen_classes.append(class_name)
-
 
     # dump bounding_boxes into a ".json" file
     new_temp_file = TEMP_FILES_PATH + "/" + file_id + "_ground_truth.json"
     gt_files.append(new_temp_file)
     with open(new_temp_file, 'w') as outfile:
         json.dump(bounding_boxes, outfile)
+
+    return tmp_gt_counter_per_class, tmp_counter_images_per_class
+
+pbar = tqdm(total=len(ground_truth_files_list), desc="Reading ground-truth files")
+with Pool(8) as p:
+    for tmp_gt_counter_per_class, tmp_counter_images_per_class in p.imap(process_file, ground_truth_files_list):
+        for key, value in tmp_gt_counter_per_class.items():
+            if key in gt_counter_per_class:
+                gt_counter_per_class[key] += value
+            else:
+                gt_counter_per_class[key] = value
+        for key, value in tmp_counter_images_per_class.items():
+            if key in counter_images_per_class:
+                counter_images_per_class[key] += value
+            else:
+                counter_images_per_class[key] = value
+        pbar.update()
+pbar.close()
 
 gt_classes = list(gt_counter_per_class.keys())
 # let's sort the classes alphabetically
