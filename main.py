@@ -8,11 +8,17 @@ import argparse
 import math
 
 import numpy as np
+try:
+    import wandb
+    use_wandb = True
+except:
+    use_wandb = False
 
 MINOVERLAP = 0.5 # default value (defined in the PASCAL VOC2012 challenge)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-id', '--input-dir', default='inputs', help="directory containing ground-truth files and detection-results files")
+parser.add_argument('-wn', '--wandb-name', help="name of the wandb run.")
 parser.add_argument('-na', '--no-animation', help="no animation is shown.", action="store_true")
 parser.add_argument('-np', '--no-plot', help="no plot is shown.", action="store_true")
 parser.add_argument('-q', '--quiet', help="minimalistic console output.", action="store_true")
@@ -21,6 +27,12 @@ parser.add_argument('-i', '--ignore', nargs='+', type=str, help="ignore a list o
 # argparse receiving list of classes with specific IoU (e.g., python main.py --set-class-iou person 0.7)
 parser.add_argument('--set-class-iou', nargs='+', type=str, help="set IoU for a specific class.")
 args = parser.parse_args()
+
+if use_wandb:
+    if args.wandb_name is None:
+        exit("Please provide a name for the wandb run: -wn <name>")
+    wandb.init(project="mAP", name=args.wandb_name)
+    wandb.config.update(args)
 
 '''
     0,0 ------> x (width)
@@ -680,6 +692,8 @@ with open(output_files_path + "/output.txt", 'w') as output_file:
         """
          Write to output.txt
         """
+        if use_wandb:
+            wandb.log({class_name: ap*100})
         rounded_prec = [ '%.2f' % elem for elem in prec ]
         rounded_rec = [ '%.2f' % elem for elem in rec ]
         output_file.write(text + "\n Precision: " + str(rounded_prec) + "\n Recall :" + str(rounded_rec) + "\n\n")
@@ -731,6 +745,9 @@ with open(output_files_path + "/output.txt", 'w') as output_file:
     text = "mAP = {0:.2f}%".format(mAP*100)
     output_file.write(text + "\n")
     print(text)
+    if use_wandb:
+        wandb.log({"mAP": mAP*100})
+        wandb.finish()
 
 """
  Draw false negatives
