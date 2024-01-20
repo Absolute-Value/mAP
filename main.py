@@ -8,6 +8,8 @@ import argparse
 import math
 
 import numpy as np
+from tqdm import tqdm
+from multiprocessing import Pool
 try:
     import wandb
     use_wandb = True
@@ -376,7 +378,7 @@ gt_counter_per_class = {}
 counter_images_per_class = {}
 
 gt_files = []
-for txt_file in ground_truth_files_list:
+for txt_file in tqdm(ground_truth_files_list, desc="Reading ground-truth files"):
     #print(txt_file)
     file_id = txt_file.split(".txt", 1)[0]
     file_id = os.path.basename(os.path.normpath(file_id))
@@ -475,7 +477,8 @@ if specific_iou_flagged:
 dr_files_list = glob.glob(DR_PATH + '/*.txt')
 dr_files_list.sort()
 
-for class_index, class_name in enumerate(gt_classes):
+def process_file(arg):
+    class_index, class_name = arg
     bounding_boxes = []
     for txt_file in dr_files_list:
         #print(txt_file)
@@ -506,6 +509,12 @@ for class_index, class_name in enumerate(gt_classes):
     bounding_boxes.sort(key=lambda x:float(x['confidence']), reverse=True)
     with open(TEMP_FILES_PATH + "/" + class_name + "_dr.json", 'w') as outfile:
         json.dump(bounding_boxes, outfile)
+
+pbar = tqdm(total=len(gt_classes), desc="Reading detection-results files")
+with Pool(8) as p:
+    for _ in p.imap(process_file, enumerate(gt_classes)):
+        pbar.update()
+pbar.close()
 
 """
  Calculate the AP for each class
