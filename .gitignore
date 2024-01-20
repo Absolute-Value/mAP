@@ -1,2 +1,4 @@
 output/
-inputs/
+inputs*/
+wandb/
+.temp_files/
